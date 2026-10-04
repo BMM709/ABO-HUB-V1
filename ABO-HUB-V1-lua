@@ -1,0 +1,459 @@
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+
+local Player = Players.LocalPlayer
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- State Management
+local Settings = {
+    WalkSpeed = 16,
+    JumpPower = 50,
+    UseJumpPower = true,
+    AutoJump = false,
+    Spin = false,
+    Rainbow = false,
+    Fullbright = false,
+    NoFog = false
+}
+
+local Connections = {
+    AutoJump = nil,
+    Spin = nil,
+    Rainbow = nil
+}
+
+-- Helpers
+local function GetCharacter()
+    return Player.Character or Player.CharacterAdded:Wait()
+end
+
+local function GetHumanoid()
+    local Character = GetCharacter()
+    return Character and Character:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetRoot()
+    local Character = GetCharacter()
+    return Character and Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function SetHumanoidProperty(Property, Value)
+    local Humanoid = GetHumanoid()
+    if Humanoid then
+        Humanoid[Property] = Value
+    end
+end
+
+-- UI Window Setup
+local Window = WindUI:CreateWindow({
+    Title = "ABO HUB SCRIPT V1",
+    Icon = "sliders",
+    Author = "ABO HUB",
+    Folder = "ABOHub_Settings",
+    Size = UDim2.fromOffset(580, 420),
+    Transparent = true,
+    Theme = "Dark",
+})
+
+local MainTab = Window:Tab({
+    Title = "ปรับแต่งความไว",
+    Icon = "zap",
+})
+
+local VisualTab = Window:Tab({
+    Title = "ภาพ",
+    Icon = "eye",
+})
+
+local FunTab = Window:Tab({
+    Title = "สนุกๆ",
+    Icon = "sparkles",
+})
+
+local UtilityTab = Window:Tab({
+    Title = "เครื่องมือ",
+    Icon = "wrench",
+})
+
+--------------------------------------------------------
+-- MAIN TAB
+--------------------------------------------------------
+MainTab:Slider({
+    Title = "ปรับความไว (WalkSpeed)",
+    Desc = "ปรับระดับความไวของตัวละคร",
+    Step = 1,
+    Min = 0,
+    Max = 999,
+    Default = 16,
+    Callback = function(Value)
+        Settings.WalkSpeed = Value
+        SetHumanoidProperty("WalkSpeed", Value)
+    end
+})
+
+MainTab:Slider({
+    Title = "พลังการกระโดด",
+    Desc = "ปรับ JumpPower",
+    Step = 1,
+    Min = 0,
+    Max = 200,
+    Default = 50,
+    Callback = function(Value)
+        Settings.JumpPower = Value
+        local Humanoid = GetHumanoid()
+        if Humanoid then
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = Value
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "กระโดดต่อเนื่อง",
+    Desc = "เปิดระบบกระโดดอัตโนมัติเมื่อแตะพื้น",
+    Default = false,
+    Callback = function(Value)
+        Settings.AutoJump = Value
+        if Connections.AutoJump then
+            Connections.AutoJump:Disconnect()
+            Connections.AutoJump = nil
+        end
+
+        if Value then
+            Connections.AutoJump = RunService.RenderStepped:Connect(function()
+                local Humanoid = GetHumanoid()
+                if Humanoid and Humanoid.FloorMaterial ~= Enum.Material.Air then
+                    Humanoid.Jump = true
+                end
+            end)
+        end
+    end
+})
+
+MainTab:Slider({
+    Title = "แรงโน้มถ่วง",
+    Desc = "ปรับ Gravity ของเกม",
+    Step = 1,
+    Min = 0,
+    Max = 196,
+    Default = 196,
+    Callback = function(Value)
+        workspace.Gravity = Value
+    end
+})
+
+MainTab:Button({
+    Title = "กระโดดทันที",
+    Desc = "สั่งให้ตัวละครกระโดด",
+    Callback = function()
+        SetHumanoidProperty("Jump", true)
+    end
+})
+
+MainTab:Button({
+    Title = "นั่ง",
+    Desc = "ให้ตัวละครนั่ง",
+    Callback = function()
+        SetHumanoidProperty("Sit", true)
+    end
+})
+
+MainTab:Button({
+    Title = "รีเซ็ตตัวละคร",
+    Desc = "รีเซ็ต Character",
+    Callback = function()
+        local Humanoid = GetHumanoid()
+        if Humanoid then
+            Humanoid.Health = 0
+        end
+    end
+})
+
+--------------------------------------------------------
+-- VISUAL TAB
+--------------------------------------------------------
+VisualTab:Slider({
+    Title = "กล้อง FOV",
+    Desc = "ปรับมุมมองกล้อง",
+    Step = 1,
+    Min = 40,
+    Max = 120,
+    Default = 70,
+    Callback = function(Value)
+        local Camera = workspace.CurrentCamera
+        if Camera then
+            Camera.FieldOfView = Value
+        end
+    end
+})
+
+VisualTab:Toggle({
+    Title = "Fullbright",
+    Desc = "เพิ่มความสว่าง",
+    Default = false,
+    Callback = function(Value)
+        Settings.Fullbright = Value
+        if Value then
+            Lighting.Brightness = 3
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 100000
+        else
+            Lighting.Brightness = 1
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = Settings.NoFog and 100000 or 1000
+        end
+    end
+})
+
+VisualTab:Toggle({
+    Title = "ลบหมอก",
+    Desc = "ปรับระยะหมอก",
+    Default = false,
+    Callback = function(Value)
+        Settings.NoFog = Value
+        if not Settings.Fullbright then
+            Lighting.FogEnd = Value and 100000 or 1000
+        end
+    end
+})
+
+VisualTab:Button({
+    Title = "กลางวัน",
+    Desc = "เปลี่ยนเวลาเป็นกลางวัน",
+    Callback = function()
+        Lighting.ClockTime = 14
+    end
+})
+
+VisualTab:Button({
+    Title = "กลางคืน",
+    Desc = "เปลี่ยนเวลาเป็นกลางคืน",
+    Callback = function()
+        Lighting.ClockTime = 0
+    end
+})
+
+VisualTab:Slider({
+    Title = "UI Transparency",
+    Desc = "ปรับความโปร่งใสของ UI",
+    Step = 1,
+    Min = 0,
+    Max = 90,
+    Default = 0,
+    Callback = function(Value)
+        pcall(function()
+            Window:SetTransparency(Value / 100)
+        end)
+    end
+})
+
+--------------------------------------------------------
+-- FUN TAB
+--------------------------------------------------------
+FunTab:Toggle({
+    Title = "หมุนตัว",
+    Desc = "หมุนตัวละครเพื่อความสนุก",
+    Default = false,
+    Callback = function(Value)
+        Settings.Spin = Value
+        if Connections.Spin then
+            Connections.Spin:Disconnect()
+            Connections.Spin = nil
+        end
+
+        if Value then
+            Connections.Spin = RunService.RenderStepped:Connect(function(dt)
+                local Root = GetRoot()
+                if Root then
+                    Root.CFrame = Root.CFrame * CFrame.Angles(0, math.rad(180) * dt, 0)
+                end
+            end)
+        end
+    end
+})
+
+FunTab:Toggle({
+    Title = "ไฟบนหัว",
+    Desc = "สร้างไฟบนหัวตัวละคร",
+    Default = false,
+    Callback = function(Value)
+        local Character = GetCharacter()
+        local Head = Character and Character:FindFirstChild("Head")
+        if not Head then return end
+
+        local Old = Head:FindFirstChild("ABOHeadLight")
+        if Value then
+            if not Old then
+                local Light = Instance.new("PointLight")
+                Light.Name = "ABOHeadLight"
+                Light.Brightness = 2
+                Light.Range = 20
+                Light.Parent = Head
+            end
+        elseif Old then
+            Old:Destroy()
+        end
+    end
+})
+
+FunTab:Toggle({
+    Title = "Highlight ตัวละคร",
+    Desc = "ทำให้ตัวละครมีขอบเรืองแสง",
+    Default = false,
+    Callback = function(Value)
+        local Character = GetCharacter()
+        if not Character then return end
+
+        local Old = Character:FindFirstChild("ABOHighlight")
+        if Value then
+            if not Old then
+                local Highlight = Instance.new("Highlight")
+                Highlight.Name = "ABOHighlight"
+                Highlight.FillTransparency = 0.6
+                Highlight.OutlineTransparency = 0
+                Highlight.Parent = Character
+            end
+        elseif Old then
+            Old:Destroy()
+        end
+    end
+})
+
+local function ScaleCharacter(scaleValue)
+    local Humanoid = GetHumanoid()
+    if not Humanoid then return end
+
+    for _, Name in ipairs({"BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale}) do
+        local Scale = Humanoid:FindFirstChild(Name)
+        if Scale then
+            Scale.Value = scaleValue
+        end
+    end
+end
+
+FunTab:Button({
+    Title = "ตัวใหญ่",
+    Desc = "เพิ่มขนาดตัวละคร",
+    Callback = function() ScaleCharacter(1.4) end
+})
+
+FunTab:Button({
+    Title = "ตัวเล็ก",
+    Desc = "ลดขนาดตัวละคร",
+    Callback = function() ScaleCharacter(0.6) end
+})
+
+FunTab:Button({
+    Title = "ขนาดปกติ",
+    Desc = "คืนขนาดตัวละคร",
+    Callback = function() ScaleCharacter(1) end
+})
+
+FunTab:Toggle({
+    Title = "Rainbow Character",
+    Desc = "เปลี่ยนสีตัวละครแบบสายรุ้ง",
+    Default = false,
+    Callback = function(Value)
+        Settings.Rainbow = Value
+        if Connections.Rainbow then
+            Connections.Rainbow:Disconnect()
+            Connections.Rainbow = nil
+        end
+
+        if Value then
+            Connections.Rainbow = RunService.RenderStepped:Connect(function()
+                local Character = GetCharacter()
+                -- [แก้ไขบัคตรงนี้แล้ว]
+                if not Character then return end
+
+                local Hue = (os.clock() % 5) / 5
+                for _, Object in ipairs(Character:GetDescendants()) do
+                    if Object:IsA("BasePart") then
+                        Object.Color = Color3.fromHSV(Hue, 0.8, 1)
+                    end
+                end
+            end)
+        end
+    end
+})
+
+FunTab:Button({
+    Title = "รีเซ็ตกล้อง",
+    Desc = "คืน FOV เป็นค่าเริ่มต้น",
+    Callback = function()
+        local Camera = workspace.CurrentCamera
+        if Camera then
+            Camera.FieldOfView = 70
+        end
+    end
+})
+
+--------------------------------------------------------
+-- UTILITY TAB
+--------------------------------------------------------
+UtilityTab:Button({
+    Title = "ข้อมูลผู้เล่น",
+    Desc = "แสดงชื่อผู้เล่น",
+    Callback = function()
+        print("ABO HUB | Player: " .. Player.Name)
+        print("ABO HUB | UserId: " .. tostring(Player.UserId))
+    end
+})
+
+UtilityTab:Button({
+    Title = "ข้อมูลเกม",
+    Desc = "แสดงข้อมูลเกมใน Output",
+    Callback = function()
+        print("ABO HUB | PlaceId: " .. tostring(game.PlaceId))
+        print("ABO HUB | JobId: " .. tostring(game.JobId))
+    end
+})
+
+UtilityTab:Button({
+    Title = "จำนวนผู้เล่น",
+    Desc = "แสดงจำนวนผู้เล่นในเซิร์ฟเวอร์",
+    Callback = function()
+        print("ABO HUB | Players: " .. #Players:GetPlayers())
+    end
+})
+
+UtilityTab:Button({
+    Title = "คืนค่าทั้งหมด",
+    Desc = "คืนค่ากล้อง แรงโน้มถ่วง และตัวละคร",
+    Callback = function()
+        workspace.Gravity = 196
+
+        local Camera = workspace.CurrentCamera
+        if Camera then
+            Camera.FieldOfView = 70
+        end
+
+        local Humanoid = GetHumanoid()
+        if Humanoid then
+            Humanoid.WalkSpeed = 16
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = 50
+        end
+
+        Lighting.Brightness = 1
+        Lighting.GlobalShadows = true
+        Lighting.FogEnd = 1000
+    end
+})
+
+-- Handle Character Respawn
+Player.CharacterAdded:Connect(function(Character)
+    local Humanoid = Character:WaitForChild("Humanoid", 10)
+    if Humanoid then
+        Humanoid.WalkSpeed = Settings.WalkSpeed
+        Humanoid.UseJumpPower = Settings.UseJumpPower
+        Humanoid.JumpPower = Settings.JumpPower
+    end
+end)
+
+-- สั่งให้เปิดหน้าเมนูแท็บ 1 เป็นค่าเริ่มต้น
+Window:SelectTab(1)
