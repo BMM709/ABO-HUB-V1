@@ -1,459 +1,1031 @@
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Camera = workspace.CurrentCamera
 
--- State Management
 local Settings = {
-    WalkSpeed = 16,
-    JumpPower = 50,
-    UseJumpPower = true,
-    AutoJump = false,
-    Spin = false,
-    Rainbow = false,
-    Fullbright = false,
-    NoFog = false
+	WalkSpeed = 16,
+	JumpPower = 50,
+	Gravity = 196.2,
+	FOV = 70,
+	AutoJump = false,
+	Fullbright = false,
+	NoFog = false,
+	Spin = false,
+	Highlight = false,
+	Open = true
 }
 
-local Connections = {
-    AutoJump = nil,
-    Spin = nil,
-    Rainbow = nil
+local OriginalLighting = {
+	Brightness = Lighting.Brightness,
+	ClockTime = Lighting.ClockTime,
+	FogEnd = Lighting.FogEnd,
+	FogStart = Lighting.FogStart,
+	Ambient = Lighting.Ambient,
+	OutdoorAmbient = Lighting.OutdoorAmbient
 }
 
--- Helpers
+local OldGui = Player:WaitForChild("PlayerGui"):FindFirstChild("ABOHUB")
+if OldGui then
+	OldGui:Destroy()
+end
+
+local function New(class, props, parent)
+	local obj = Instance.new(class)
+	for key, value in pairs(props or {}) do
+		obj[key] = value
+	end
+	obj.Parent = parent
+	return obj
+end
+
+local function Corner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius or 8)
+	c.Parent = parent
+	return c
+end
+
+local function Stroke(parent, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0
+	s.Color = Color3.fromRGB(70, 70, 80)
+	s.Parent = parent
+	return s
+end
+
+local function Padding(parent, left, right, top, bottom)
+	local p = Instance.new("UIPadding")
+	p.PaddingLeft = UDim.new(0, left or 0)
+	p.PaddingRight = UDim.new(0, right or 0)
+	p.PaddingTop = UDim.new(0, top or 0)
+	p.PaddingBottom = UDim.new(0, bottom or 0)
+	p.Parent = parent
+	return p
+end
+
+local Gui = New("ScreenGui", {
+	Name = "ABOHUB",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, Player:WaitForChild("PlayerGui"))
+
+local ToggleButton = New("TextButton", {
+	Name = "ToggleButton",
+	Size = UDim2.fromOffset(58, 48),
+	Position = UDim2.new(0, 12, 0.5, -24),
+	BackgroundColor3 = Color3.fromRGB(25, 25, 30),
+	BackgroundTransparency = 0.05,
+	Text = ">_",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	TextSize = 22,
+	Font = Enum.Font.GothamBold,
+	AutoButtonColor = false,
+	Active = true,
+	Selectable = false,
+	ZIndex = 100
+}, Gui)
+
+Corner(ToggleButton, 12)
+Stroke(ToggleButton, 1.5, 0)
+
+local Main = New("Frame", {
+	Name = "Main",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	BackgroundColor3 = Color3.fromRGB(18, 18, 23),
+	BackgroundTransparency = 0.03,
+	ClipsDescendants = true,
+	Active = true,
+	ZIndex = 10
+}, Gui)
+
+Corner(Main, 14)
+Stroke(Main, 1.5, 0)
+
+local Header = New("Frame", {
+	Name = "Header",
+	Size = UDim2.new(1, 0, 0, 58),
+	BackgroundColor3 = Color3.fromRGB(25, 25, 32),
+	BorderSizePixel = 0,
+	Active = true,
+	ZIndex = 11
+}, Main)
+
+Corner(Header, 14)
+
+New("Frame", {
+	Size = UDim2.new(1, 0, 0, 15),
+	Position = UDim2.new(0, 0, 1, -15),
+	BackgroundColor3 = Color3.fromRGB(25, 25, 32),
+	BorderSizePixel = 0,
+	ZIndex = 11
+}, Header)
+
+New("TextLabel", {
+	Name = "Title",
+	Size = UDim2.new(1, -110, 1, 0),
+	Position = UDim2.new(0, 18, 0, 0),
+	BackgroundTransparency = 1,
+	Text = ">_ ABO HUB SCRIPT V1",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	TextSize = 18,
+	Font = Enum.Font.GothamBold,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 12
+}, Header)
+
+New("TextLabel", {
+	Size = UDim2.new(0, 75, 1, 0),
+	Position = UDim2.new(1, -88, 0, 0),
+	BackgroundTransparency = 1,
+	Text = "ONLINE",
+	TextColor3 = Color3.fromRGB(100, 255, 150),
+	TextSize = 11,
+	Font = Enum.Font.GothamBold,
+	TextXAlignment = Enum.TextXAlignment.Right,
+	ZIndex = 12
+}, Header)
+
+local CloseButton = New("TextButton", {
+	Name = "CloseButton",
+	Size = UDim2.fromOffset(34, 34),
+	Position = UDim2.new(1, -43, 0, 12),
+	BackgroundColor3 = Color3.fromRGB(45, 45, 53),
+	Text = "×",
+	TextColor3 = Color3.fromRGB(255, 100, 100),
+	TextSize = 24,
+	Font = Enum.Font.GothamBold,
+	AutoButtonColor = false,
+	ZIndex = 15
+}, Header)
+
+Corner(CloseButton, 9)
+
+local TabBar = New("ScrollingFrame", {
+	Name = "TabBar",
+	Size = UDim2.new(1, -20, 0, 48),
+	Position = UDim2.new(0, 10, 0, 65),
+	BackgroundColor3 = Color3.fromRGB(23, 23, 29),
+	BorderSizePixel = 0,
+	ScrollBarThickness = 2,
+	ScrollingDirection = Enum.ScrollingDirection.X,
+	AutomaticCanvasSize = Enum.AutomaticSize.X,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	Active = true,
+	ZIndex = 12
+}, Main)
+
+Corner(TabBar, 10)
+Padding(TabBar, 5, 5, 5, 5)
+
+local TabLayout = New("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal,
+	HorizontalAlignment = Enum.HorizontalAlignment.Left,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0, 5),
+	SortOrder = Enum.SortOrder.LayoutOrder
+}, TabBar)
+
+local Content = New("ScrollingFrame", {
+	Name = "Content",
+	Size = UDim2.new(1, -20, 1, -125),
+	Position = UDim2.new(0, 10, 0, 120),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 4,
+	ScrollingDirection = Enum.ScrollingDirection.Y,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	Active = true,
+	ZIndex = 11
+}, Main)
+
+local function ClampMain()
+	local viewport = Camera.ViewportSize
+	local size = Main.AbsoluteSize
+	local pos = Main.AbsolutePosition
+	local margin = 8
+
+	local minX = margin
+	local minY = margin
+	local maxX = math.max(minX, viewport.X - size.X - margin)
+	local maxY = math.max(minY, viewport.Y - size.Y - margin)
+
+	local x = math.clamp(pos.X, minX, maxX)
+	local y = math.clamp(pos.Y, minY, maxY)
+
+	Main.Position = UDim2.fromOffset(x + size.X / 2, y + size.Y / 2)
+end
+
+local function UpdateLayout()
+	local viewport = Camera.ViewportSize
+
+	if viewport.X <= 700 then
+		local w = math.floor(viewport.X * 0.94)
+		local h = math.floor(viewport.Y * 0.84)
+
+		w = math.max(300, math.min(w, 600))
+		h = math.max(330, math.min(h, 650))
+
+		Main.Size = UDim2.fromOffset(w, h)
+	else
+		Main.Size = UDim2.fromOffset(
+			math.min(560, viewport.X - 40),
+			math.min(430, viewport.Y - 40)
+		)
+	end
+
+	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+	task.defer(ClampMain)
+end
+
+UpdateLayout()
+
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateLayout)
+
+local DraggingMain = false
+local DragStart
+local StartPos
+
+Header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		DraggingMain = true
+		DragStart = input.Position
+		StartPos = Main.Position
+	end
+end)
+
+Header.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		DraggingMain = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not DraggingMain then
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement
+		and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	local delta = input.Position - DragStart
+	local viewport = Camera.ViewportSize
+	local size = Main.AbsoluteSize
+
+	local x = StartPos.X.Offset + delta.X
+	local y = StartPos.Y.Offset + delta.Y
+
+	local minX = size.X / 2 + 8
+	local maxX = viewport.X - size.X / 2 - 8
+	local minY = size.Y / 2 + 8
+	local maxY = viewport.Y - size.Y / 2 - 8
+
+	Main.Position = UDim2.fromOffset(
+		math.clamp(x, minX, maxX),
+		math.clamp(y, minY, maxY)
+	)
+end)
+
+local DraggingToggle = false
+local ToggleDragStart
+local ToggleStartPos
+local ToggleMoved = false
+
+ToggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		DraggingToggle = true
+		ToggleMoved = false
+		ToggleDragStart = input.Position
+		ToggleStartPos = ToggleButton.Position
+	end
+end)
+
+ToggleButton.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		DraggingToggle = false
+
+		if not ToggleMoved then
+			Settings.Open = not Settings.Open
+			Main.Visible = Settings.Open
+		end
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not DraggingToggle then
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement
+		and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	local delta = input.Position - ToggleDragStart
+
+	if math.abs(delta.X) > 8 or math.abs(delta.Y) > 8 then
+		ToggleMoved = true
+	end
+
+	local viewport = Camera.ViewportSize
+
+	local x = ToggleStartPos.X.Offset + delta.X
+	local y = ToggleStartPos.Y.Offset + delta.Y
+
+	x = math.clamp(x, 5, viewport.X - ToggleButton.AbsoluteSize.X - 5)
+	y = math.clamp(y, 5, viewport.Y - ToggleButton.AbsoluteSize.Y - 5)
+
+	ToggleButton.Position = UDim2.fromOffset(x, y)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+	Settings.Open = false
+	Main.Visible = false
+end)
+
+local Tabs = {}
+
+local function CreateTab(name, order)
+	local button = New("TextButton", {
+		Name = name,
+		Size = UDim2.fromOffset(112, 36),
+		BackgroundColor3 = Color3.fromRGB(35, 35, 43),
+		Text = name,
+		TextColor3 = Color3.fromRGB(180, 180, 190),
+		TextSize = 12,
+		Font = Enum.Font.GothamSemibold,
+		AutoButtonColor = false,
+		LayoutOrder = order,
+		ZIndex = 13
+	}, TabBar)
+
+	Corner(button, 8)
+
+	local frame = New("Frame", {
+		Name = name .. "_Content",
+		Size = UDim2.new(1, 0, 0, 0),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 12
+	}, Content)
+
+	New("UIListLayout", {
+		Padding = UDim.new(0, 9),
+		SortOrder = Enum.SortOrder.LayoutOrder
+	}, frame)
+
+	Padding(frame, 4, 4, 4, 8)
+
+	Tabs[name] = {
+		Button = button,
+		Frame = frame
+	}
+
+	button.MouseButton1Click:Connect(function()
+		for _, data in pairs(Tabs) do
+			data.Frame.Visible = false
+			data.Button.BackgroundColor3 = Color3.fromRGB(35, 35, 43)
+			data.Button.TextColor3 = Color3.fromRGB(180, 180, 190)
+		end
+
+		frame.Visible = true
+		button.BackgroundColor3 = Color3.fromRGB(65, 65, 80)
+		button.TextColor3 = Color3.fromRGB(255, 255, 255)
+		Content.CanvasPosition = Vector2.new(0, 0)
+	end)
+
+	return frame
+end
+
+local function Section(parent, title)
+	return New("TextLabel", {
+		Size = UDim2.new(1, -8, 0, 34),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		TextSize = 15,
+		Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = #parent:GetChildren() + 1
+	}, parent)
+end
+
+local function Button(parent, text, callback)
+	local button = New("TextButton", {
+		Size = UDim2.new(1, -8, 0, 42),
+		BackgroundColor3 = Color3.fromRGB(32, 32, 40),
+		Text = text,
+		TextColor3 = Color3.fromRGB(235, 235, 240),
+		TextSize = 13,
+		Font = Enum.Font.GothamSemibold,
+		AutoButtonColor = false,
+		LayoutOrder = #parent:GetChildren() + 1
+	}, parent)
+
+	Corner(button, 9)
+	Stroke(button, 1, 0.35)
+
+	button.MouseEnter:Connect(function()
+		button.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+	end)
+
+	button.MouseLeave:Connect(function()
+		button.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+	end)
+
+	button.MouseButton1Click:Connect(function()
+		if callback then
+			callback()
+		end
+	end)
+
+	return button
+end
+
+local function Toggle(parent, text, default, callback)
+	local value = default
+
+	local button = New("TextButton", {
+		Size = UDim2.new(1, -8, 0, 44),
+		BackgroundColor3 = Color3.fromRGB(32, 32, 40),
+		Text = "",
+		AutoButtonColor = false,
+		LayoutOrder = #parent:GetChildren() + 1
+	}, parent)
+
+	Corner(button, 9)
+	Stroke(button, 1, 0.35)
+
+	New("TextLabel", {
+		Size = UDim2.new(1, -75, 1, 0),
+		Position = UDim2.new(0, 14, 0, 0),
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = Color3.fromRGB(235, 235, 240),
+		TextSize = 13,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Left
+	}, button)
+
+	local switch = New("Frame", {
+		Size = UDim2.fromOffset(42, 22),
+		Position = UDim2.new(1, -55, 0.5, -11),
+		BackgroundColor3 = Color3.fromRGB(65, 65, 72)
+	}, button)
+
+	Corner(switch, 12)
+
+	local dot = New("Frame", {
+		Size = UDim2.fromOffset(18, 18),
+		Position = UDim2.new(0, 2, 0.5, -9),
+		BackgroundColor3 = Color3.fromRGB(220, 220, 225)
+	}, switch)
+
+	Corner(dot, 10)
+
+	local function Update()
+		if value then
+			switch.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+			dot.Position = UDim2.new(1, -20, 0.5, -9)
+		else
+			switch.BackgroundColor3 = Color3.fromRGB(65, 65, 72)
+			dot.Position = UDim2.new(0, 2, 0.5, -9)
+		end
+
+		if callback then
+			callback(value)
+		end
+	end
+
+	button.MouseButton1Click:Connect(function()
+		value = not value
+		Update()
+	end)
+
+	Update()
+
+	return {
+		Set = function(v)
+			value  = v
+			Update()
+		end,
+		Get = function()
+			return value
+		end
+	}
+end
+
+local function Slider(parent, text, min, max, default, callback)
+	local value = default
+
+	local holder = New("Frame", {
+		Size = UDim2.new(1, -8, 0, 68),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 38),
+		LayoutOrder = #parent:GetChildren() + 1
+	}, parent)
+
+	Corner(holder, 9)
+
+	New("TextLabel", {
+		Size = UDim2.new(1, -80, 0, 27),
+		Position = UDim2.new(0, 12, 0, 4),
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = Color3.fromRGB(230, 230, 235),
+		TextSize = 12,
+		Font = Enum.Font.GothamSemibold,
+		TextXAlignment = Enum.TextXAlignment.Left
+	}, holder)
+
+	local valueLabel = New("TextLabel", {
+		Size = UDim2.new(0, 65, 0, 27),
+		Position = UDim2.new(1, -72, 0, 4),
+		BackgroundTransparency = 1,
+		Text = tostring(default),
+		TextColor3 = Color3.fromRGB(120, 220, 255),
+		TextSize = 12,
+		Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Right
+	}, holder)
+
+	local bar = New("TextButton", {
+		Size = UDim2.new(1, -24, 0, 14),
+		Position = UDim2.new(0, 12, 0, 43),
+		BackgroundColor3 = Color3.fromRGB(55, 55, 65),
+		Text = "",
+		AutoButtonColor = false,
+		Active = true
+	}, holder)
+
+	Corner(bar, 7)
+
+	local fill = New("Frame", {
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = Color3.fromRGB(90, 190, 255),
+		BorderSizePixel = 0
+	}, bar)
+
+	Corner(fill, 7)
+
+	local knob = New("Frame", {
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0)
+	}, bar)
+
+	Corner(knob, 10)
+
+	local dragging = false
+
+	local function SetValueFromX(x)
+		if bar.AbsoluteSize.X <= 0 then
+			return
+		end
+
+		local relative = math.clamp(
+			x - bar.AbsolutePosition.X,
+			0,
+			bar.AbsoluteSize.X
+		)
+
+		local percent = relative / bar.AbsoluteSize.X
+
+		value = min + (max - min) * percent
+
+		if math.abs(value - math.floor(value)) < 0.01 then
+			value = math.floor(value)
+		else
+			value = math.floor(value * 10 + 0.5) / 10
+		end
+
+		local p = (value - min) / (max - min)
+
+		fill.Size = UDim2.new(p, 0, 1, 0)
+		knob.Position = UDim2.new(p, 0, 0.5, 0)
+		valueLabel.Text = tostring(value)
+
+		if callback then
+			callback(value)
+		end
+	end
+
+	bar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			SetValueFromX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then
+			return
+		end
+
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			SetValueFromX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	task.defer(function()
+		if bar.AbsoluteSize.X > 0 then
+			SetValueFromX(
+				bar.AbsolutePosition.X
+				+ ((default - min) / (max - min)) * bar.AbsoluteSize.X
+			)
+		end
+	end)
+
+	return {
+		Set = function(v)
+			value = math.clamp(v, min, max)
+
+			local p = (value - min) / (max - min)
+
+			fill.Size = UDim2.new(p, 0, 1, 0)
+			knob.Position = UDim2.new(p, 0, 0.5, 0)
+			valueLabel.Text = tostring(value)
+
+			if callback then
+				callback(value)
+			end
+		end,
+
+		Get = function()
+			return value
+		end
+	}
+end
+
 local function GetCharacter()
-    return Player.Character or Player.CharacterAdded:Wait()
+	return Player.Character
 end
 
 local function GetHumanoid()
-    local Character = GetCharacter()
-    return Character and Character:FindFirstChildOfClass("Humanoid")
+	local char = GetCharacter()
+	if char then
+		return char:FindFirstChildOfClass("Humanoid")
+	end
 end
 
-local function GetRoot()
-    local Character = GetCharacter()
-    return Character and Character:FindFirstChild("HumanoidRootPart")
+local function ApplyMovement()
+	local hum = GetHumanoid()
+
+	if hum then
+		hum.WalkSpeed = Settings.WalkSpeed
+		hum.UseJumpPower = true
+		hum.JumpPower = Settings.JumpPower
+	end
+
+	workspace.Gravity = Settings.Gravity
 end
 
-local function SetHumanoidProperty(Property, Value)
-    local Humanoid = GetHumanoid()
-    if Humanoid then
-        Humanoid[Property] = Value
-    end
+local function ApplyFOV()
+	if Camera then
+		Camera.FieldOfView = Settings.FOV
+	end
 end
 
--- UI Window Setup
-local Window = WindUI:CreateWindow({
-    Title = "ABO HUB SCRIPT V1",
-    Icon = "sliders",
-    Author = "ABO HUB",
-    Folder = "ABOHub_Settings",
-    Size = UDim2.fromOffset(580, 420),
-    Transparent = true,
-    Theme = "Dark",
-})
-
-local MainTab = Window:Tab({
-    Title = "ปรับแต่งความไว",
-    Icon = "zap",
-})
-
-local VisualTab = Window:Tab({
-    Title = "ภาพ",
-    Icon = "eye",
-})
-
-local FunTab = Window:Tab({
-    Title = "สนุกๆ",
-    Icon = "sparkles",
-})
-
-local UtilityTab = Window:Tab({
-    Title = "เครื่องมือ",
-    Icon = "wrench",
-})
-
---------------------------------------------------------
--- MAIN TAB
---------------------------------------------------------
-MainTab:Slider({
-    Title = "ปรับความไว (WalkSpeed)",
-    Desc = "ปรับระดับความไวของตัวละคร",
-    Step = 1,
-    Min = 0,
-    Max = 999,
-    Default = 16,
-    Callback = function(Value)
-        Settings.WalkSpeed = Value
-        SetHumanoidProperty("WalkSpeed", Value)
-    end
-})
-
-MainTab:Slider({
-    Title = "พลังการกระโดด",
-    Desc = "ปรับ JumpPower",
-    Step = 1,
-    Min = 0,
-    Max = 200,
-    Default = 50,
-    Callback = function(Value)
-        Settings.JumpPower = Value
-        local Humanoid = GetHumanoid()
-        if Humanoid then
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = Value
-        end
-    end
-})
-
-MainTab:Toggle({
-    Title = "กระโดดต่อเนื่อง",
-    Desc = "เปิดระบบกระโดดอัตโนมัติเมื่อแตะพื้น",
-    Default = false,
-    Callback = function(Value)
-        Settings.AutoJump = Value
-        if Connections.AutoJump then
-            Connections.AutoJump:Disconnect()
-            Connections.AutoJump = nil
-        end
-
-        if Value then
-            Connections.AutoJump = RunService.RenderStepped:Connect(function()
-                local Humanoid = GetHumanoid()
-                if Humanoid and Humanoid.FloorMaterial ~= Enum.Material.Air then
-                    Humanoid.Jump = true
-                end
-            end)
-        end
-    end
-})
-
-MainTab:Slider({
-    Title = "แรงโน้มถ่วง",
-    Desc = "ปรับ Gravity ของเกม",
-    Step = 1,
-    Min = 0,
-    Max = 196,
-    Default = 196,
-    Callback = function(Value)
-        workspace.Gravity = Value
-    end
-})
-
-MainTab:Button({
-    Title = "กระโดดทันที",
-    Desc = "สั่งให้ตัวละครกระโดด",
-    Callback = function()
-        SetHumanoidProperty("Jump", true)
-    end
-})
-
-MainTab:Button({
-    Title = "นั่ง",
-    Desc = "ให้ตัวละครนั่ง",
-    Callback = function()
-        SetHumanoidProperty("Sit", true)
-    end
-})
-
-MainTab:Button({
-    Title = "รีเซ็ตตัวละคร",
-    Desc = "รีเซ็ต Character",
-    Callback = function()
-        local Humanoid = GetHumanoid()
-        if Humanoid then
-            Humanoid.Health = 0
-        end
-    end
-})
-
---------------------------------------------------------
--- VISUAL TAB
---------------------------------------------------------
-VisualTab:Slider({
-    Title = "กล้อง FOV",
-    Desc = "ปรับมุมมองกล้อง",
-    Step = 1,
-    Min = 40,
-    Max = 120,
-    Default = 70,
-    Callback = function(Value)
-        local Camera = workspace.CurrentCamera
-        if Camera then
-            Camera.FieldOfView = Value
-        end
-    end
-})
-
-VisualTab:Toggle({
-    Title = "Fullbright",
-    Desc = "เพิ่มความสว่าง",
-    Default = false,
-    Callback = function(Value)
-        Settings.Fullbright = Value
-        if Value then
-            Lighting.Brightness = 3
-            Lighting.ClockTime = 14
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 100000
-        else
-            Lighting.Brightness = 1
-            Lighting.ClockTime = 14
-            Lighting.GlobalShadows = true
-            Lighting.FogEnd = Settings.NoFog and 100000 or 1000
-        end
-    end
-})
-
-VisualTab:Toggle({
-    Title = "ลบหมอก",
-    Desc = "ปรับระยะหมอก",
-    Default = false,
-    Callback = function(Value)
-        Settings.NoFog = Value
-        if not Settings.Fullbright then
-            Lighting.FogEnd = Value and 100000 or 1000
-        end
-    end
-})
-
-VisualTab:Button({
-    Title = "กลางวัน",
-    Desc = "เปลี่ยนเวลาเป็นกลางวัน",
-    Callback = function()
-        Lighting.ClockTime = 14
-    end
-})
-
-VisualTab:Button({
-    Title = "กลางคืน",
-    Desc = "เปลี่ยนเวลาเป็นกลางคืน",
-    Callback = function()
-        Lighting.ClockTime = 0
-    end
-})
-
-VisualTab:Slider({
-    Title = "UI Transparency",
-    Desc = "ปรับความโปร่งใสของ UI",
-    Step = 1,
-    Min = 0,
-    Max = 90,
-    Default = 0,
-    Callback = function(Value)
-        pcall(function()
-            Window:SetTransparency(Value / 100)
-        end)
-    end
-})
-
---------------------------------------------------------
--- FUN TAB
---------------------------------------------------------
-FunTab:Toggle({
-    Title = "หมุนตัว",
-    Desc = "หมุนตัวละครเพื่อความสนุก",
-    Default = false,
-    Callback = function(Value)
-        Settings.Spin = Value
-        if Connections.Spin then
-            Connections.Spin:Disconnect()
-            Connections.Spin = nil
-        end
-
-        if Value then
-            Connections.Spin = RunService.RenderStepped:Connect(function(dt)
-                local Root = GetRoot()
-                if Root then
-                    Root.CFrame = Root.CFrame * CFrame.Angles(0, math.rad(180) * dt, 0)
-                end
-            end)
-        end
-    end
-})
-
-FunTab:Toggle({
-    Title = "ไฟบนหัว",
-    Desc = "สร้างไฟบนหัวตัวละคร",
-    Default = false,
-    Callback = function(Value)
-        local Character = GetCharacter()
-        local Head = Character and Character:FindFirstChild("Head")
-        if not Head then return end
-
-        local Old = Head:FindFirstChild("ABOHeadLight")
-        if Value then
-            if not Old then
-                local Light = Instance.new("PointLight")
-                Light.Name = "ABOHeadLight"
-                Light.Brightness = 2
-                Light.Range = 20
-                Light.Parent = Head
-            end
-        elseif Old then
-            Old:Destroy()
-        end
-    end
-})
-
-FunTab:Toggle({
-    Title = "Highlight ตัวละคร",
-    Desc = "ทำให้ตัวละครมีขอบเรืองแสง",
-    Default = false,
-    Callback = function(Value)
-        local Character = GetCharacter()
-        if not Character then return end
-
-        local Old = Character:FindFirstChild("ABOHighlight")
-        if Value then
-            if not Old then
-                local Highlight = Instance.new("Highlight")
-                Highlight.Name = "ABOHighlight"
-                Highlight.FillTransparency = 0.6
-                Highlight.OutlineTransparency = 0
-                Highlight.Parent = Character
-            end
-        elseif Old then
-            Old:Destroy()
-        end
-    end
-})
-
-local function ScaleCharacter(scaleValue)
-    local Humanoid = GetHumanoid()
-    if not Humanoid then return end
-
-    for _, Name in ipairs({"BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale}) do
-        local Scale = Humanoid:FindFirstChild(Name)
-        if Scale then
-            Scale.Value = scaleValue
-        end
-    end
+local function ApplyFullbright()
+	if Settings.Fullbright then
+		Lighting.Brightness = 3
+		Lighting.ClockTime = 14
+		Lighting.FogEnd = 100000
+		Lighting.FogStart = 0
+		Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+		Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+	else
+		Lighting.Brightness = OriginalLighting.Brightness
+		Lighting.ClockTime = OriginalLighting.ClockTime
+		Lighting.FogEnd = OriginalLighting.FogEnd
+		Lighting.FogStart = OriginalLighting.FogStart
+		Lighting.Ambient = OriginalLighting.Ambient
+		Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+	end
 end
 
-FunTab:Button({
-    Title = "ตัวใหญ่",
-    Desc = "เพิ่มขนาดตัวละคร",
-    Callback = function() ScaleCharacter(1.4) end
-})
+local function ApplyNoFog()
+	if Settings.NoFog then
+		Lighting.FogEnd = 100000
+		Lighting.FogStart = 0
+	else
+		Lighting.FogEnd = OriginalLighting.FogEnd
+		Lighting.FogStart = OriginalLighting.FogStart
+	end
+end
 
-FunTab:Button({
-    Title = "ตัวเล็ก",
-    Desc = "ลดขนาดตัวละคร",
-    Callback = function() ScaleCharacter(0.6) end
-})
+local function ClearHighlights()
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Highlight") and obj.Name == "ABO_Highlight" then
+			obj:Destroy()
+		end
+	end
+end
 
-FunTab:Button({
-    Title = "ขนาดปกติ",
-    Desc = "คืนขนาดตัวละคร",
-    Callback = function() ScaleCharacter(1) end
-})
+local function ApplyHighlight()
+	ClearHighlights()
 
-FunTab:Toggle({
-    Title = "Rainbow Character",
-    Desc = "เปลี่ยนสีตัวละครแบบสายรุ้ง",
-    Default = false,
-    Callback = function(Value)
-        Settings.Rainbow = Value
-        if Connections.Rainbow then
-            Connections.Rainbow:Disconnect()
-            Connections.Rainbow = nil
-        end
+	if not Settings.Highlight then
+		return
+	end
 
-        if Value then
-            Connections.Rainbow = RunService.RenderStepped:Connect(function()
-                local Character = GetCharacter()
-                -- [แก้ไขบัคตรงนี้แล้ว]
-                if not Character then return end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= Player and player.Character then
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "ABO_Highlight"
+			highlight.FillTransparency = 0.55
+			highlight.OutlineTransparency = 0
+			highlight.Parent = player.Character
+		end
+	end
+end
 
-                local Hue = (os.clock() % 5) / 5
-                for _, Object in ipairs(Character:GetDescendants()) do
-                    if Object:IsA("BasePart") then
-                        Object.Color = Color3.fromHSV(Hue, 0.8, 1)
-                    end
-                end
-            end)
-        end
-    end
-})
+local MovementTab = CreateTab("ปรับแต่ง", 1)
+local VisualTab = CreateTab("ภาพ", 2)
+local FunTab = CreateTab("สนุกๆ", 3)
+local UtilityTab = CreateTab("เครื่องมือ", 4)
 
-FunTab:Button({
-    Title = "รีเซ็ตกล้อง",
-    Desc = "คืน FOV เป็นค่าเริ่มต้น",
-    Callback = function()
-        local Camera = workspace.CurrentCamera
-        if Camera then
-            Camera.FieldOfView = 70
-        end
-    end
-})
+Section(MovementTab, "การเคลื่อนไหว")
 
---------------------------------------------------------
--- UTILITY TAB
---------------------------------------------------------
-UtilityTab:Button({
-    Title = "ข้อมูลผู้เล่น",
-    Desc = "แสดงชื่อผู้เล่น",
-    Callback = function()
-        print("ABO HUB | Player: " .. Player.Name)
-        print("ABO HUB | UserId: " .. tostring(Player.UserId))
-    end
-})
-
-UtilityTab:Button({
-    Title = "ข้อมูลเกม",
-    Desc = "แสดงข้อมูลเกมใน Output",
-    Callback = function()
-        print("ABO HUB | PlaceId: " .. tostring(game.PlaceId))
-        print("ABO HUB | JobId: " .. tostring(game.JobId))
-    end
-})
-
-UtilityTab:Button({
-    Title = "จำนวนผู้เล่น",
-    Desc = "แสดงจำนวนผู้เล่นในเซิร์ฟเวอร์",
-    Callback = function()
-        print("ABO HUB | Players: " .. #Players:GetPlayers())
-    end
-})
-
-UtilityTab:Button({
-    Title = "คืนค่าทั้งหมด",
-    Desc = "คืนค่ากล้อง แรงโน้มถ่วง และตัวละคร",
-    Callback = function()
-        workspace.Gravity = 196
-
-        local Camera = workspace.CurrentCamera
-        if Camera then
-            Camera.FieldOfView = 70
-        end
-
-        local Humanoid = GetHumanoid()
-        if Humanoid then
-            Humanoid.WalkSpeed = 16
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = 50
-        end
-
-        Lighting.Brightness = 1
-        Lighting.GlobalShadows = true
-        Lighting.FogEnd = 1000
-    end
-})
-
--- Handle Character Respawn
-Player.CharacterAdded:Connect(function(Character)
-    local Humanoid = Character:WaitForChild("Humanoid", 10)
-    if Humanoid then
-        Humanoid.WalkSpeed = Settings.WalkSpeed
-        Humanoid.UseJumpPower = Settings.UseJumpPower
-        Humanoid.JumpPower = Settings.JumpPower
-    end
+Slider(MovementTab, "WalkSpeed", 1, 100, Settings.WalkSpeed, function(value)
+	Settings.WalkSpeed = value
+	ApplyMovement()
 end)
 
--- สั่งให้เปิดหน้าเมนูแท็บ 1 เป็นค่าเริ่มต้น
-Window:SelectTab(1)
+Slider(MovementTab, "JumpPower", 1, 150, Settings.JumpPower, function(value)
+	Settings.JumpPower = value
+	ApplyMovement()
+end)
+
+Slider(MovementTab, "Gravity", 0, 300, Settings.Gravity, function(value)
+	Settings.Gravity = value
+	workspace.Gravity = value
+end)
+
+Toggle(MovementTab, "Auto Jump", Settings.AutoJump, function(value)
+	Settings.AutoJump = value
+end)
+
+Section(MovementTab, "คำสั่ง")
+
+Button(MovementTab, "กระโดด", function()
+	local hum = GetHumanoid()
+	if hum then
+		hum.Jump = true
+	end
+end)
+
+Button(MovementTab, "นั่ง", function()
+	local hum = GetHumanoid()
+	if hum then
+		hum.Sit = true
+	end
+end)
+
+Button(MovementTab, "รีเซ็ตตัวละคร", function()
+	local hum = GetHumanoid()
+	if hum then
+		hum.Health = 0
+	end
+end)
+
+Button(MovementTab, "คืนค่าการเคลื่อนไหว", function()
+	Settings.WalkSpeed = 16
+	Settings.JumpPower = 50
+	Settings.Gravity = 196.2
+	ApplyMovement()
+end)
+
+Section(VisualTab, "กล้อง")
+
+Slider(VisualTab, "FOV", 40, 120, Settings.FOV, function(value)
+	Settings.FOV = value
+	ApplyFOV()
+end)
+
+Button(VisualTab, "รีเซ็ต FOV", function()
+	Settings.FOV = 70
+	ApplyFOV()
+end)
+
+Section(VisualTab, "แสงและภาพ")
+
+Toggle(VisualTab, "Fullbright", Settings.Fullbright, function(value)
+	Settings.Fullbright = value
+	ApplyFullbright()
+end)
+
+Toggle(VisualTab, "No Fog", Settings.NoFog, function(value)
+	Settings.NoFog = value
+	ApplyNoFog()
+end)
+
+Button(VisualTab, "กลางวัน", function()
+	Lighting.ClockTime = 14
+end)
+
+Button(VisualTab, "กลางคืน", function()
+	Lighting.ClockTime = 0
+end)
+
+Button(VisualTab, "คืนค่าแสง", function()
+	Settings.Fullbright = false
+	Settings.NoFog = false
+	Lighting.Brightness = OriginalLighting.Brightness
+	Lighting.ClockTime = OriginalLighting.ClockTime
+	Lighting.FogEnd = OriginalLighting.FogEnd
+	Lighting.FogStart = OriginalLighting.FogStart
+	Lighting.Ambient = OriginalLighting.Ambient
+	Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+end)
+
+Section(FunTab, "เอฟเฟกต์")
+
+Toggle(FunTab, "Spin Character", Settings.Spin, function(value)
+	Settings.Spin = value
+end)
+
+Toggle(FunTab, "Player Highlight", Settings.Highlight, function(value)
+	Settings.Highlight = value
+	ApplyHighlight()
+end)
+
+Section(FunTab, "ตัวละคร")
+
+Button(FunTab, "ตัวละครขนาดปกติ", function()
+	local char = GetCharacter()
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	if hum then
+		local desc = hum:GetAppliedDescription()
+		desc.HeightScale = 1
+		desc.WidthScale = 1
+		desc.DepthScale = 1
+		desc.HeadScale = 1
+		hum:ApplyDescription(desc)
+	end
+end)
+
+Button(FunTab, "ตัวละครตัวเล็ก", function()
+	local char = GetCharacter()
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	if hum then
+		local desc = hum:GetAppliedDescription()
+		desc.HeightScale = 0.7
+		desc.WidthScale = 0.7
+		desc.DepthScale = 0.7
+		desc.HeadScale = 0.8
+		hum:ApplyDescription(desc)
+	end
+end)
+
+Button(FunTab, "ตัวละครตัวใหญ่", function()
+	local char = GetCharacter()
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	if hum then
+		local desc = hum:GetAppliedDescription()
+		desc.HeightScale = 1.3
+		desc.WidthScale = 1.3
+		desc.DepthScale = 1.3
+		desc.HeadScale = 1.2
+		hum:ApplyDescription(desc)
+	end
+end)
+
+Section(UtilityTab, "ข้อมูล")
+
+Button(UtilityTab, "ข้อมูลผู้เล่น", function()
+	local hum = GetHumanoid()
+
+	print("ชื่อ:", Player.Name)
+	print("DisplayName:", Player.DisplayName)
+
+	if hum then
+		print("Health:", hum.Health)
+		print("WalkSpeed:", hum.WalkSpeed)
+		print("JumpPower:", hum.JumpPower)
+	end
+end)
+
+Button(UtilityTab, "ข้อมูลเกม", function()
+	print("Game:", game.Name)
+	print("PlaceId:", game.PlaceId)
+	print("JobId:", game.JobId)
+	print("Players:", #Players:GetPlayers())
+end)
+
+Button(UtilityTab, "จำนวนผู้เล่น", function()
+	print("ผู้เล่นในเซิร์ฟเวอร์:", #Players:GetPlayers())
+end)
+
+Section(UtilityTab, "รีเซ็ต")
+
+Button(UtilityTab, "รีเซ็ตทุกอย่าง", function()
+	Settings.WalkSpeed = 16
+	Settings.JumpPower = 50
+	Settings.Gravity = 196.2
+	Settings.FOV = 70
+	Settings.AutoJump = false
+	Settings.Fullbright = false
+	Settings.NoFog = false
+	Settings.Spin = false
+	Settings.Highlight = false
+
+	ApplyMovement()
+	ApplyFOV()
+
+	Lighting.Brightness = OriginalLighting.Brightness
+	Lighting.ClockTime = OriginalLighting.ClockTime
+	Lighting.FogEnd = OriginalLighting.FogEnd
+	Lighting.FogStart = OriginalLighting.FogStart
+	Lighting.Ambient = OriginalLighting.Ambient
+	Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+
+	ClearHighlights()
+end)
+
+Button(UtilityTab, "ปิด UI", function()
+	Settings.Open = false
+	Main.Visible = false
+end)
+
+Tabs["ปรับแต่ง"].Frame.Visible = true
+Tabs["ปรับแต่ง"].Button.BackgroundColor3 = Color3.fromRGB(65, 65, 80)
+Tabs["ปรับแต่ง"].Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+RunService.Heartbeat:Connect(function()
+	if Settings.AutoJump then
+		local hum = GetHumanoid()
+
+		if hum and hum.FloorMaterial ~= Enum.Material.Air then
+			hum.Jump = true
+		end
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if Settings.Spin then
+		local char = GetCharacter()
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+
+		if root then
+			root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(5), 0)
+		end
+	end
+end)
+
+Player.CharacterAdded:Connect(function()
+	task.wait(0.5)
+	ApplyMovement()
+	ApplyFOV()
+
+	if Settings.Highlight then
+		task.wait(0.3)
+		ApplyHighlight()
+	end
+end)
+
+Players.PlayerAdded:Connect(function()
+	if Settings.Highlight then
+		task.wait(0.5)
+		ApplyHighlight()
+	end
+end)
+
+Players.PlayerRemoving:Connect(function()
+	if Settings.Highlight then
+		task.wait()
+		ApplyHighlight()
+	end
+end)
+
+ApplyMovement()
+ApplyFOV()
+ApplyFullbright()
+ApplyNoFog()
+UpdateLayout()
